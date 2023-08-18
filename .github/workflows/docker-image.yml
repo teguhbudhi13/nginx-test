@@ -13,8 +13,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: Build Docker Image
-        run: docker login https://coreharbor.tebelabk3s.lyr.id -u admin -p V3WTOnHt2uJ92e0ydElfrI9K7dUFIfq
-        run: docker build -t coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest .
-        run: docker push coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest
-
+      - name: Build and Push Docker Image
+        run: |
+          docker login https://coreharbor.tebelabk3s.lyr.id -u admin -p V3WTOnHt2uJ92e0ydElfrI9K7dUFIfq
+          docker build -t coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest .
+          docker push coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest
