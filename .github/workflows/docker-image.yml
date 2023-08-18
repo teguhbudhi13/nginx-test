@@ -15,6 +15,6 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker login https://coreharbor.tebelabk3s.lyr.id -u admin -p V3WTOnHt2uJ92e0ydElfrI9K7dUFIfq
+          docker login https://coreharbor.tebelabk3s.lyr.id -u admin -p V3WTOnHt2uJ92e0ydElfrI9K7dUFIfqr
           docker build -t coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest .
           docker push coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest
