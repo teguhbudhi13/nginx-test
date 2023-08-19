@@ -21,7 +21,7 @@ spec:
         resources:
           limits:
             cpu: 1
-            memory: 1i
+            memory: 1Gi
 ---
 
 apiVersion: v1
