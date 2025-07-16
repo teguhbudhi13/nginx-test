@@ -54,6 +54,21 @@ jobs:
             exit 1
           fi
 
+      - name: Show Fix Details for Trivy CRITICAL/HIGH
+        if: always() # show output even if previous failed
+        run: |
+          echo "Vulnerabilities with available fixes (CRITICAL/HIGH):"
+          jq -r '
+            .Results[]
+            | select(.Vulnerabilities)
+            | .Vulnerabilities[]
+            | select(.Severity=="CRITICAL" or .Severity=="HIGH")
+            | select(.FixedVersion != null and .FixedVersion != "" and .FixedVersion != "-")
+            | "\(.PkgName)\t\(.InstalledVersion)\t\(.VulnerabilityID)\t\(.Severity)\t\(.FixedVersion)"
+          ' trivy-results.json | \
+          awk 'BEGIN {print "PkgName\tCurrent\tCVE\tSeverity\tFixedVersion"} {print $0}'
+
+
       # --- Install Docker Scout ---
       - name: Install Docker Scout
         run: |
