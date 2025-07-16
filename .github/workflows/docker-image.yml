@@ -74,11 +74,15 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s -- -b /usr/local/bin
 
-      # --- Docker Scout CVEs scan (AWK for CRITICAL/HIGH details) ---
+      - name: Install Docker Scout
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
+          sh install-scout.sh
+          docker scout version
+
       - name: Docker Scout CVEs scan
         run: |
           docker scout cves teguhbudhi13/nginx:${TAG} > scout.log || true
-          # Show CRITICAL/HIGH findings with details (package, CVE, etc)
           awk '
           /^ +[0-9]+C/ {
             split($0, parts, "  ");
@@ -95,19 +99,22 @@ jobs:
           }
           ' scout.log
 
-          # Count and fail if any CRITICAL or HIGH found
           CRITICAL=$(grep -c '✗ CRITICAL' scout.log || true)
           HIGH=$(grep -c '✗ HIGH' scout.log || true)
           echo "CRITICAL found by Docker Scout: $CRITICAL"
           echo "HIGH found by Docker Scout: $HIGH"
-          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "Docker Scout found critical/high vulnerabilities. Failing."
-            exit 1
-          fi
+          echo "CRITICAL=$CRITICAL" >> $GITHUB_ENV
+          echo "HIGH=$HIGH" >> $GITHUB_ENV
 
-      # --- Docker Scout Recommendations ---
       - name: Docker Scout Recommendations
         run: docker scout recommendations teguhbudhi13/nginx:${TAG}
+
+      - name: Fail if critical/high CVEs in Docker Scout
+        if: env.CRITICAL != '0' || env.HIGH != '0'
+        run: |
+          echo "Failing pipeline due to critical/high CVEs found by Docker Scout."
+          exit 1
+
 
       # --- Push to DockerHub (if all checks passed) ---
       - name: Push image to DockerHub
