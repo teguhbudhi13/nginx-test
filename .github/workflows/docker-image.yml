@@ -22,7 +22,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      # Tag is full commit SHA
       - name: Set commitid as image tag
         id: tag
         run: echo "TAG=${GITHUB_SHA}" >> $GITHUB_ENV
@@ -47,12 +46,8 @@ jobs:
           HIGH=$(jq '[.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity=="HIGH")] | length' trivy-results.json)
           echo "CRITICAL found by Trivy: $CRITICAL"
           echo "HIGH found by Trivy: $HIGH"
-          echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
-          echo "high_count=$HIGH" >> $GITHUB_OUTPUT
-          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "Trivy found critical/high vulnerabilities. Failing."
-            exit 1
-          fi
+          echo "TRIVY_CRITICAL=$CRITICAL" >> $GITHUB_ENV
+          echo "TRIVY_HIGH=$HIGH" >> $GITHUB_ENV
 
       - name: Show Fix Details for Trivy CRITICAL/HIGH
         if: always()
@@ -68,12 +63,7 @@ jobs:
           ' trivy-results.json | \
           awk 'BEGIN {print "PkgName\tCurrent\tCVE\tSeverity\tFixedVersion"} {print $0}'
 
-      # --- Install Docker Scout ---
-      # --- Install Docker Scout ---
-      - name: Install Docker Scout
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s -- -b /usr/local/bin
-
+      # --- Install Docker Scout (official) ---
       - name: Install Docker Scout
         run: |
           curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
@@ -103,19 +93,20 @@ jobs:
           HIGH=$(grep -c '✗ HIGH' scout.log || true)
           echo "CRITICAL found by Docker Scout: $CRITICAL"
           echo "HIGH found by Docker Scout: $HIGH"
-          echo "CRITICAL=$CRITICAL" >> $GITHUB_ENV
-          echo "HIGH=$HIGH" >> $GITHUB_ENV
+          echo "SCOUT_CRITICAL=$CRITICAL" >> $GITHUB_ENV
+          echo "SCOUT_HIGH=$HIGH" >> $GITHUB_ENV
 
       - name: Docker Scout Recommendations
         run: docker scout recommendations teguhbudhi13/nginx:${TAG}
 
-      - name: Fail if critical/high CVEs in Docker Scout
-        if: env.CRITICAL != '0' || env.HIGH != '0'
+      # --- Fail pipeline if there are critical/high vulnerabilities (after all reporting) ---
+      - name: Fail if critical/high in Trivy or Docker Scout
+        if: env.TRIVY_CRITICAL != '0' || env.TRIVY_HIGH != '0' || env.SCOUT_CRITICAL != '0' || env.SCOUT_HIGH != '0'
         run: |
-          echo "Failing pipeline due to critical/high CVEs found by Docker Scout."
+          echo "Failing pipeline due to critical/high CVEs found by Trivy or Docker Scout."
           exit 1
-
 
       # --- Push to DockerHub (if all checks passed) ---
       - name: Push image to DockerHub
+        if: env.TRIVY_CRITICAL == '0' && env.TRIVY_HIGH == '0' && env.SCOUT_CRITICAL == '0' && env.SCOUT_HIGH == '0'
         run: docker push teguhbudhi13/nginx:${TAG}
