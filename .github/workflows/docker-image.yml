@@ -34,7 +34,7 @@ jobs:
 
       # --- Trivy Scan (JSON Output) ---
       - name: Trivy Scan (JSON Output)
-        uses: aquasecurity/trivy-action@v0.17.0
+        uses: aquasecurity/trivy-action@v0.32.0
         with:
           image-ref: teguhbudhi13/nginx:${{ env.TAG }}
           format: json
