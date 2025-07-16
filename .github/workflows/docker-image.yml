@@ -43,8 +43,8 @@ jobs:
       - name: Show Critical/High from Trivy
         id: trivy-count
         run: |
-          CRITICAL=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="CRITICAL")] | length' trivy-results.json)
-          HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="HIGH")] | length' trivy-results.json)
+          CRITICAL=$(jq '[.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity=="CRITICAL")] | length' trivy-results.json)
+          HIGH=$(jq '[.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity=="HIGH")] | length' trivy-results.json)
           echo "CRITICAL found by Trivy: $CRITICAL"
           echo "HIGH found by Trivy: $HIGH"
           echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
@@ -55,19 +55,18 @@ jobs:
           fi
 
       - name: Show Fix Details for Trivy CRITICAL/HIGH
-        if: always() # show output even if previous failed
+        if: always()
         run: |
           echo "Vulnerabilities with available fixes (CRITICAL/HIGH):"
           jq -r '
             .Results[]
-            | select(.Vulnerabilities)
+            | select(.Vulnerabilities != null)
             | .Vulnerabilities[]
             | select(.Severity=="CRITICAL" or .Severity=="HIGH")
             | select(.FixedVersion != null and .FixedVersion != "" and .FixedVersion != "-")
             | "\(.PkgName)\t\(.InstalledVersion)\t\(.VulnerabilityID)\t\(.Severity)\t\(.FixedVersion)"
           ' trivy-results.json | \
           awk 'BEGIN {print "PkgName\tCurrent\tCVE\tSeverity\tFixedVersion"} {print $0}'
-
 
       # --- Install Docker Scout ---
       - name: Install Docker Scout
