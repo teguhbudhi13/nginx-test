@@ -1,20 +1,83 @@
-name: CI
+name: CI Docker Image Scan
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
 
 jobs:
-  build:
+  image-scan:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - name: Build and Push Docker Image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --- Docker Login ---
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      # --- Define Image Tag ---
+      - name: Set commitid as image tag
+        id: tag
+        run: echo "TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      # --- Build Docker image ---
+      - name: Build Docker image
+        run: docker build -t teguhbudhi13/nginx:${TAG} .
+
+      # --- Trivy Scan (JSON Output) ---
+      - name: Trivy Scan (JSON Output)
+        uses: aquasecurity/trivy-action@v0.17.0
+        with:
+          image-ref: teguhbudhi13/nginx:${{ env.TAG }}
+          format: json
+          output: trivy-results.json
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Show Critical/High from Trivy
+        id: trivy-count
         run: |
-          docker login https://coreharbor.tebelabk3s.lyr.id -u admin -p V3WTOnHt2uJ92e0ydElfrI9K7dUFIfqr
-          docker build -t coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest .
-          docker push coreharbor.tebelabk3s.lyr.id/public/nginxtest:latest
+          CRITICAL=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="CRITICAL")] | length' trivy-results.json)
+          HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="HIGH")] | length' trivy-results.json)
+          echo "CRITICAL found by Trivy: $CRITICAL"
+          echo "HIGH found by Trivy: $HIGH"
+          echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "Trivy found critical/high vulnerabilities. Failing."
+            exit 1
+          fi
+
+      # --- Install Docker Scout ---
+      - name: Install Docker Scout
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s -- -b /usr/local/bin
+
+      # --- Docker Scout CVEs scan (SARIF Output) ---
+      - name: Docker Scout CVEs scan
+        run: |
+          docker scout cves teguhbudhi13/nginx:${TAG} --format sarif --output scout-results.sarif > scout.log || true
+          CRITICAL=$(grep -c '✗ CRITICAL' scout.log || true)
+          HIGH=$(grep -c '✗ HIGH' scout.log || true)
+          echo "CRITICAL found by Docker Scout: $CRITICAL"
+          echo "HIGH found by Docker Scout: $HIGH"
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "Docker Scout found critical/high vulnerabilities. Failing."
+            exit 1
+          fi
+
+      # --- Docker Scout Recommendations ---
+      - name: Docker Scout Recommendations
+        run: docker scout recommendations teguhbudhi13/nginx:${TAG}
+
+      # --- Push to DockerHub (optional, only if you want to push the image after all checks) ---
+      - name: Push image to DockerHub
+        run: docker push teguhbudhi13/nginx:${TAG}
