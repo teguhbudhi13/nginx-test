@@ -12,7 +12,7 @@ USER root
 RUN mkdir -p /var/cache/nginx && chmod -R 777 /var/cache/nginx
 
 # Expose port 80
-EXPOSE 80
+EXPOSE 8080
 
 # Let OpenShift assign any UID (do NOT specify USER here)
 CMD ["nginx", "-g", "daemon off;"]
