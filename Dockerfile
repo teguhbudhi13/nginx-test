@@ -7,8 +7,12 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy your index.html file to the default Nginx web root directory
 COPY index.html /usr/share/nginx/html/
 
-# Expose port 80, which is the default port for Nginx
+# Fix permissions for OpenShift random UID (allow write to cache/temp)
+USER root
+RUN mkdir -p /var/cache/nginx && chmod -R 777 /var/cache/nginx
+
+# Expose port 80
 EXPOSE 80
 
-# The CMD instruction specifies the command to run when the container starts
+# Let OpenShift assign any UID (do NOT specify USER here)
 CMD ["nginx", "-g", "daemon off;"]
